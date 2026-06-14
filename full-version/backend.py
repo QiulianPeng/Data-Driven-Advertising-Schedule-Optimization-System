@@ -157,7 +157,7 @@ beta = defaultdict(lambda: 1.0)
 # ---------------- 前端 HTML ----------------
 @app.route('/')
 def index():
-    with open(os.path.join(BASE_DIR, 'qianduan.html'), 'r', encoding='utf-8') as f:
+    with open(os.path.join(BASE_DIR, 'frontend.html'), 'r', encoding='utf-8') as f:
         html_content = f.read()
     return Response(html_content, mimetype='text/html')
 
@@ -351,4 +351,6 @@ def export_result():
     return send_file(out_file, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5050)
+    import os as _os
+    port = int(_os.environ.get('PORT', 5050))
+    app.run(debug=False, host='0.0.0.0', port=port)
