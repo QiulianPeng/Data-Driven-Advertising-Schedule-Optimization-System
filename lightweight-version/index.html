@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <h1 style="text-align:center;">广告排期模拟器（轻量版）</h1>
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; margin: 20px; background: #f4f7f9; color: #333; }
+        h2, h3 { color: #2c3e50; margin-bottom: 10px; }
+        .container { max-width: 1200px; margin: auto; }
+        .card { background: #fff; padding: 20px; margin: 20px 0; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #eee; padding: 10px 12px; text-align: center; font-size: 14px; }
+        th { background-color: #e9f2fb; font-weight: 600; color: #2c3e50; }
+        tbody tr:hover { background-color: #f6fbff; }
+        button { padding: 10px 20px; margin-top: 15px; cursor: pointer; background: linear-gradient(135deg, #4CAF50, #2e8b57); color: white; border: none; border-radius: 25px; font-size: 14px; font-weight: bold; transition: all 0.3s ease; }
+        button:hover { background: linear-gradient(135deg, #45a049, #207044); transform: translateY(-2px); }
+        button.secondary { background: linear-gradient(135deg, #3498db, #2c80d8); }
+        button.secondary:hover { background: linear-gradient(135deg, #2980b9, #206090); }
+        #activity-selection label { display: block; margin-bottom: 6px; font-size: 15px; font-weight: 500; }
+        #activity-selection input { margin-left: 8px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; width: 60px; text-align: center; font-size: 14px; }
+        #charts { margin-top: 20px; display: flex; flex-direction: column; gap: 25px; }
+        canvas { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 3px 12px rgba(0,0,0,0.08); width: 100% !important; height: 400px !important; }
+        .tab { overflow: hidden; border-bottom: 2px solid #ddd; margin-bottom: 10px; }
+        .tab button { background-color: inherit; float: left; border: none; outline: none; cursor: pointer; padding: 12px 24px; transition: 0.3s; font-size: 15px; font-weight: bold; }
+        .tab button.active { background-color: #e9f2fb; color: #2c3e50; border-radius: 8px 8px 0 0; }
+        .tabcontent { display: none; padding: 10px 0; }
+        #status { font-weight: bold; margin-top: 10px; color: #007bff; }
+        small { font-size: 13px; color: #555; display:block; margin-bottom:12px; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h2>12月广告优化排期</h2>
+        <div id="activity-selection"></div>
+        <button onclick="submitPlan()">提交求解</button>
+        <button class="secondary" onclick="saveResult()">保存结果</button>
+        <button class="secondary" onclick="exportResult()">导出结果</button>
+        <button id="toggle-view-btn" onclick="toggleView()">显示历史结果</button>
+        <p id="status"></p>
+    </div>
+
+    <!-- 最新结果部分 -->
+    <div class="card" id="latest-results">
+        <h3>每日报告</h3>
+        <table id="plan-table">
+        <thead>
+            <tr>
+                <th>活动</th>
+                <th>日期</th>
+                <th>渠道</th>
+                <th>广告系列ID</th>
+                <th>广告组ID</th>
+                <th>花费</th>
+                <th>曝光</th>
+                <th>点击</th>
+                <th>预测订单量</th>
+                <th>业绩</th>
+                <th>ROI</th>
+                <th>CTR</th>
+                <th>CPC</th>
+                <th>CPA</th>
+                <th>CPM</th>
+                <th>CVR</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+        </table>
+
+        <h3>活动汇总</h3>
+        <table id="summary-table">
+        <thead><tr>
+            <th>活动</th><th>总投放天数</th><th>总花费</th><th>总曝光</th>
+            <th>总点击</th><th>总预测订单</th><th>总业绩</th>
+        </tr></thead>
+        <tbody></tbody>
+        </table>
+
+        <h3>可视化图表</h3>
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event,'ordersChartTab')">预测订单量</button>
+            <button class="tablinks" onclick="openTab(event,'spendChartTab')">花费</button>
+            <button class="tablinks" onclick="openTab(event,'clicksChartTab')">点击</button>
+            <button class="tablinks" onclick="openTab(event,'impressionsChartTab')">曝光</button>
+            <button class="tablinks" onclick="openTab(event,'revenueChartTab')">业绩</button>
+            <button class="tablinks" onclick="openTab(event,'roiChartTab')">ROI</button>
+            <button class="tablinks" onclick="openTab(event,'ctrChartTab')">CTR</button>
+            <button class="tablinks" onclick="openTab(event,'cpcChartTab')">CPC</button>
+            <button class="tablinks" onclick="openTab(event,'cpaChartTab')">CPA</button>
+            <button class="tablinks" onclick="openTab(event,'cpmChartTab')">CPM</button>
+            <button class="tablinks" onclick="openTab(event,'cvrChartTab')">CVR</button>
+        </div>
+        <div id="ordersChartTab" class="tabcontent" style="display:block"><canvas id="ordersChart"></canvas></div>
+        <div id="spendChartTab" class="tabcontent"><canvas id="spendChart"></canvas></div>
+        <div id="clicksChartTab" class="tabcontent"><canvas id="clicksChart"></canvas></div>
+        <div id="impressionsChartTab" class="tabcontent"><canvas id="impressionsChart"></canvas></div>
+        <div id="revenueChartTab" class="tabcontent"><canvas id="revenueChart"></canvas></div>
+        <div id="roiChartTab" class="tabcontent"><canvas id="roiChart"></canvas></div>
+        <div id="ctrChartTab" class="tabcontent"><canvas id="ctrChart"></canvas></div>
+        <div id="cpcChartTab" class="tabcontent"><canvas id="cpcChart"></canvas></div>
+        <div id="cpaChartTab" class="tabcontent"><canvas id="cpaChart"></canvas></div>
+        <div id="cpmChartTab" class="tabcontent"><canvas id="cpmChart"></canvas></div>
+        <div id="cvrChartTab" class="tabcontent"><canvas id="cvrChart"></canvas></div>
+    </div>
+
+    <div class="card" id="history-card" style="display:none;">
+        <h3>选择历史记录</h3>
+        <select id="history-select" onchange="loadHistoryDetail()">
+            <option value="">请选择历史记录</option>
+        </select>
+        <h3>历史结果</h3>
+        <table id="history-table">
+            <thead>
+                <tr>
+                    <th>活动</th>
+                    <th>日期</th>
+                    <th>渠道</th>
+                    <th>广告系列ID</th>
+                    <th>广告组ID</th>
+                    <th>花费</th>
+                    <th>曝光</th>
+                    <th>点击</th>
+                    <th>预测订单量</th>
+                    <th>业绩</th>
+                    <th>ROI</th>
+                    <th>CTR</th>
+                    <th>CPC</th>
+                    <th>CPA</th>
+                    <th>CPM</th>
+                    <th>CVR</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <h3>活动汇总</h3>
+        <table id="history-summary-table">
+            <thead>
+                <tr>
+                    <th>活动</th><th>总投放天数</th><th>总花费</th><th>总曝光</th>
+                    <th>总点击</th><th>总预测订单</th><th>总业绩</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>   
+
+<script>
+// JavaScript逻辑
+
+let showingHistory = false;
+let lastResult = null;
+let simulatedHistory = []; // 用于模拟历史数据
+
+function toggleView() {
+    const latestCard = document.getElementById('latest-results');
+    const historyCard = document.getElementById('history-card');
+    if (!showingHistory) {
+        historyCard.style.display = 'block';
+        latestCard.style.display = 'none';
+        document.getElementById('toggle-view-btn').innerText = '显示最新结果';
+        showingHistory = true;
+        loadHistoryDetail(); // 加载历史记录
+    } else {
+        latestCard.style.display = 'block';
+        historyCard.style.display = 'none';
+        document.getElementById('toggle-view-btn').innerText = '显示历史结果';
+        showingHistory = false;
+    }
+}
+
+function loadHistoryDetail() {
+    if (simulatedHistory.length === 0) {
+        alert("没有历史记录数据!");
+        return;
+    }
+    const idx = simulatedHistory.length - 1; // 加载最新的一条历史记录
+    const { plan, summary } = simulatedHistory[idx];
+
+    const planTable = document.querySelector('#history-table tbody');
+    planTable.innerHTML = "";
+    plan.forEach(row => {
+        let tr = "<tr>";
+        ['活动', '日期', '渠道', '广告系列ID', '广告组ID', '花费', '曝光', '点击', '预测订单量', '业绩', 'ROI', 'CTR', 'CPC', 'CPA', 'CPM', 'CVR'].forEach(col => {
+            tr += `<td>${row[col]}</td>`;
+        });
+        tr += "</tr>";
+        planTable.innerHTML += tr;
+    });
+
+    const summaryTable = document.querySelector('#history-summary-table tbody');
+    summaryTable.innerHTML = "";
+    summary.forEach(row => {
+        let tr = "<tr>";
+        ['活动', '总投放天数', '总花费', '总曝光', '总点击', '总预测订单', '总业绩'].forEach(col => {
+            tr += `<td>${row[col]}</td>`;
+        });
+        tr += "</tr>";
+        summaryTable.innerHTML += tr;
+    });
+}
+
+function openTab(evt, tabName) {
+    const parent = evt.currentTarget.closest('.card');
+    parent.querySelectorAll(".tabcontent").forEach(el => el.style.display = "none");
+    parent.querySelectorAll(".tab button").forEach(el => el.classList.remove("active"));
+    parent.querySelector("#" + tabName).style.display = "block";
+    evt.currentTarget.classList.add("active");
+}
+
+// 加载历史记录
+function loadActivities() {
+    const activities = ['活动A', '活动B', '活动C', '活动D', '活动E'];
+    const div = document.getElementById('activity-selection');
+    activities.forEach(act => {
+        div.innerHTML += `<label>${act} 最大投放天数：
+            <input type="number" min="0" max="31" value="0" id="days_${act}"></label>`;
+    });
+    div.innerHTML += `<small>节假日：2026-12-20 澳门回归纪念日；2026-12-22 冬至；2026-12-24 平安夜；2026-12-25 圣诞节 （假定节假日效益是平时1.5倍）</small>`;
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    loadActivities();
+});
+
+// 提交计划并计算广告指标
+function submitPlan() {
+    const startTime = performance.now(); // 开始计时
+    document.getElementById('status').innerText = "解答中，请等待...";
+    const activities = [];
+    let allZero = true;
+    document.querySelectorAll('input[type=number]').forEach(input => {
+        const act = input.id.replace('days_', '');
+        const days = parseInt(input.value);
+        if (days > 0) allZero = false;
+        activities.push({ 活动: act, 天数: days });
+    });
+    if (allZero) {
+        alert("请选择活动安排天数");
+        document.getElementById('status').innerText = "";
+        return;
+    }
+
+    // 生成模拟数据
+    let plan = [];
+    let summary = [];
+    let totalSpend = 0;
+    const maxSpend = 1000000;
+    const channels = ['Bing', 'Pinterest', 'Google', 'Facebook'];
+    const today = new Date('2026-12-01');
+    const activitiesWithDays = activities.filter(a => a.天数 > 0);
+
+    activitiesWithDays.forEach(act => {
+        for (let d = 0; d < act.天数; d++) {
+            const date = new Date(today);
+            date.setDate(today.getDate() + d);
+            const dateStr = date.toISOString().split('T')[0];
+            const recordCount = Math.floor(Math.random() * 3) + 1; // 每天1-3条
+            for (let i = 0; i < recordCount; i++) {
+                const spend = Math.min(Math.random() * 5000, maxSpend - totalSpend);
+                if (spend <= 0) break;
+                totalSpend += spend;
+                const r = {
+                    活动: act.活动,
+                    日期: dateStr,
+                    渠道: channels[Math.floor(Math.random() * channels.length)],
+                    '广告系列ID': 'se' + Math.floor(Math.random() * 200),
+                    '广告组ID': 'group' + Math.floor(Math.random() * 10),
+                    花费: spend.toFixed(2),
+                    曝光: Math.floor(Math.random() * 50000),
+                    点击: Math.floor(Math.random() * 5000),
+                    预测订单量: (Math.random() * 200).toFixed(2),
+                    业绩: (Math.random() * 20000).toFixed(2)
+                };
+                plan.push(r);
+                if (totalSpend >= maxSpend) break;
+            }
+            if (totalSpend >= maxSpend) break;
+        }
+    });
+
+    // 计算广告指标（推迟到所有数据生成后进行计算）
+    calculateAdMetrics(plan);
+
+    // 活动汇总
+    activitiesWithDays.forEach(act => {
+        const rows = plan.filter(r => r.活动 === act.活动);
+        summary.push({
+            活动: act.活动,
+            总投放天数: act.天数,
+            总花费: rows.reduce((a, b) => a + parseFloat(b.花费), 0).toFixed(2),
+            总曝光: rows.reduce((a, b) => a + parseInt(b.曝光), 0),
+            总点击: rows.reduce((a, b) => a + parseInt(b.点击), 0),
+            总预测订单: rows.reduce((a, b) => a + parseFloat(b.预测订单量), 0).toFixed(2),
+            总业绩: rows.reduce((a, b) => a + parseFloat(b.业绩), 0).toFixed(2)
+        });
+    });
+
+    // 保存到全局
+    lastResult = { plan, summary };
+    simulatedHistory.push({ plan, summary });
+    renderPlan(plan, summary);
+
+    const endTime = performance.now();
+    const elapsed = ((endTime - startTime) / 1000).toFixed(2);
+
+    let memoryInfo = "";
+    if (performance.memory) {
+        memoryInfo = ` | 内存使用: ${(performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    document.getElementById('status').innerText =
+        `完成 | 总花费: ${totalSpend.toFixed(2)} | 用时: ${elapsed} 秒${memoryInfo}`;
+}
+
+// 计算广告指标并添加到每条数据中
+function calculateAdMetrics(plan) {
+    plan.forEach(row => {
+        row.ROI = ((parseFloat(row.业绩) - parseFloat(row.花费)) / parseFloat(row.花费)).toFixed(4); // ROI
+        row.CTR = (parseInt(row.点击) / parseInt(row.曝光)).toFixed(4); // CTR
+        row.CPC = (parseFloat(row.花费) / parseInt(row.点击)).toFixed(4); // CPC
+        row.CPA = (parseFloat(row.花费) / parseFloat(row.预测订单量)).toFixed(4); // CPA
+        row.CPM = (parseFloat(row.花费) / (parseInt(row.曝光) / 1000)).toFixed(4); // CPM
+        row.CVR = (parseFloat(row.预测订单量) / parseInt(row.点击)).toFixed(4); // CVR
+    });
+}
+
+// 渲染表格并绘制广告指标图表
+function renderPlan(plan, summary) {
+    const planTable = document.querySelector('#plan-table tbody');
+    planTable.innerHTML = '';
+    plan.forEach(row => {
+        let tr = '<tr>';
+        ['活动', '日期', '渠道', '广告系列ID', '广告组ID', '花费', '曝光', '点击', '预测订单量', '业绩', 'ROI', 'CTR', 'CPC', 'CPA', 'CPM', 'CVR'].forEach(col => {
+            tr += `<td>${row[col]}</td>`;
+        });
+        tr += '</tr>';
+        planTable.innerHTML += tr;
+    });
+
+    const summaryTable = document.querySelector('#summary-table tbody');
+    summaryTable.innerHTML = '';
+    summary.forEach(row => {
+        let tr = '<tr>';
+        ['活动', '总投放天数', '总花费', '总曝光', '总点击', '总预测订单', '总业绩'].forEach(col => {
+            tr += `<td>${row[col]}</td>`;
+        });
+        tr += '</tr>';
+        summaryTable.innerHTML += tr;
+    });
+
+    drawCharts(plan, 'ordersChart', 'spendChart', 'clicksChart', 'impressionsChart', 'revenueChart', 'roiChart', 'ctrChart', 'cpcChart', 'cpaChart', 'cpmChart', 'cvrChart');
+}
+
+// 绘制广告指标图表
+function drawCharts(planData, ordersId, spendId, clicksId, impressionsId, revenueId, roiId, ctrId, cpcId, cpaId, cpmId, cvrId) {
+    let activities = [...new Set(planData.map(r => r.活动))];
+    let dates = [...new Set(planData.map(r => r.日期))].sort();
+
+    function prepareMetric(metric) {
+        let dataByActivity = {};
+        activities.forEach(act => {
+            dataByActivity[act] = dates.map(d => {
+                return planData.filter(r => r.活动 === act && r.日期 === d)
+                    .reduce((sum, r) => sum + Number(r[metric]), 0);
+            });
+        });
+        return dataByActivity;
+    }
+
+    let metrics = {
+        ordersChart: prepareMetric('预测订单量'),
+        spendChart: prepareMetric('花费'),
+        clicksChart: prepareMetric('点击'),
+        impressionsChart: prepareMetric('曝光'),
+        revenueChart: prepareMetric('业绩'),
+        roiChart: prepareMetric('ROI'),
+        ctrChart: prepareMetric('CTR'),
+        cpcChart: prepareMetric('CPC'),
+        cpaChart: prepareMetric('CPA'),
+        cpmChart: prepareMetric('CPM'),
+        cvrChart: prepareMetric('CVR')
+    };
+
+    const colors = ['#3498db', '#2ecc71', '#e67e22', '#9b59b6', '#e74c3c', '#16a085', '#8e44ad', '#f39c12'];
+
+    function makeDatasets(dataByActivity) {
+        return activities.map((act, i) => {
+            return {
+                label: act,
+                data: dataByActivity[act],
+                borderColor: colors[i % colors.length],
+                backgroundColor: colors[i % colors.length] + '33',
+                tension: 0.3,
+                fill: true
+            };
+        });
+    }
+
+    [ordersId, spendId, clicksId, impressionsId, revenueId, roiId, ctrId, cpcId, cpaId, cpmId, cvrId].forEach(id => {
+        if (window[id + 'Obj']) window[id + 'Obj'].destroy();
+    });
+
+    window[ordersId + 'Obj'] = new Chart(document.getElementById(ordersId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.ordersChart) },
+        options: { responsive: true }
+    });
+    window[spendId + 'Obj'] = new Chart(document.getElementById(spendId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.spendChart) },
+        options: { responsive: true }
+    });
+    window[clicksId + 'Obj'] = new Chart(document.getElementById(clicksId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.clicksChart) },
+        options: { responsive: true }
+    });
+    window[impressionsId + 'Obj'] = new Chart(document.getElementById(impressionsId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.impressionsChart) },
+        options: { responsive: true }
+    });
+    window[revenueId + 'Obj'] = new Chart(document.getElementById(revenueId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.revenueChart) },
+        options: { responsive: true }
+    });
+    window[roiId + 'Obj'] = new Chart(document.getElementById(roiId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.roiChart) },
+        options: { responsive: true }
+    });
+    window[ctrId + 'Obj'] = new Chart(document.getElementById(ctrId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.ctrChart) },
+        options: { responsive: true }
+    });
+    window[cpcId + 'Obj'] = new Chart(document.getElementById(cpcId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.cpcChart) },
+        options: { responsive: true }
+    });
+    window[cpaId + 'Obj'] = new Chart(document.getElementById(cpaId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.cpaChart) },
+        options: { responsive: true }
+    });
+    window[cpmId + 'Obj'] = new Chart(document.getElementById(cpmId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.cpmChart) },
+        options: { responsive: true }
+    });
+    window[cvrId + 'Obj'] = new Chart(document.getElementById(cvrId), {
+        type: 'line',
+        data: { labels: dates, datasets: makeDatasets(metrics.cvrChart) },
+        options: { responsive: true }
+    });
+}
+
+function saveResult() {
+    if (!lastResult) { alert("请先生成计划"); return; }
+    const select = document.getElementById('history-select');
+    const option = document.createElement('option');
+    option.value = simulatedHistory.length - 1;
+    option.text = "历史记录" + simulatedHistory.length;
+    select.add(option);
+    alert("结果已保存到历史");
+}
+
+function exportResult() {
+    if (!lastResult) { alert("请先生成计划"); return; }
+    const { plan, summary } = lastResult;
+    let csv = "每日报告\n";
+    csv += "活动,日期,渠道,广告系列ID,广告组ID,花费,曝光,点击,预测订单量,业绩\n";
+    plan.forEach(row => {
+        csv += [row.活动, row.日期, row.渠道, row.广告系列ID, row.广告组ID, row.花费, row.曝光, row.点击, row.预测订单量, row.业绩].join(",") + "\n";
+    });
+    csv += "\n活动汇总\n";
+    csv += "活动,总投放天数,总花费,总曝光,总点击,总预测订单,总业绩\n";
+    summary.forEach(row => {
+        csv += [row.活动, row.总投放天数, row.总花费, row.总曝光, row.总点击, row.总预测订单, row.总业绩].join(",") + "\n";
+    });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "result.csv";
+    link.click();
+}
+</script>
+</body>
+</html>
